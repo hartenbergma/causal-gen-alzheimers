@@ -11,6 +11,6 @@ Send2Trash==1.8.2
 # skimage==0.0
 scikit-image
 torch==2.0.0
-torchvision==0.15.0
+torchvision
 tqdm==4.65.0
 monai
