@@ -96,14 +96,6 @@
         "Diagnosis": 0.5
     },
     {
-        "Subject": "OAS30773",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30773_MR_d0044/anat1/OAS30773_MR_d0044.png",
-        "ID": "OAS30773_MR_d0044",
-        "Sex": "F",
-        "Age": 70.56,
-        "Diagnosis": 2.0
-    },
-    {
         "Subject": "OAS30705",
         "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30705_MR_d0070/anat2/OAS30705_MR_d0070.png",
         "ID": "OAS30705_MR_d0070",
@@ -894,14 +886,6 @@
         "Sex": "M",
         "Age": 75.81,
         "Diagnosis": 0.0
-    },
-    {
-        "Subject": "OAS31054",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS31054_MR_d2787/anat4/OAS31054_MR_d2787.png",
-        "ID": "OAS31054_MR_d2787",
-        "Sex": "M",
-        "Age": 69.7,
-        "Diagnosis": 2.0
     },
     {
         "Subject": "037_S_0303",
@@ -3478,14 +3462,6 @@
         "Sex": "M",
         "Age": 67.47,
         "Diagnosis": 0.0
-    },
-    {
-        "Subject": "OAS30271",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30271_MR_d0004/anat1/OAS30271_MR_d0004.png",
-        "ID": "OAS30271_MR_d0004",
-        "Sex": "M",
-        "Age": 66.11,
-        "Diagnosis": 2.0
     },
     {
         "Subject": "OAS30017",
@@ -6776,14 +6752,6 @@
         "Diagnosis": 0.0
     },
     {
-        "Subject": "OAS30440",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30440_MR_d0163/anat1/OAS30440_MR_d0163.png",
-        "ID": "OAS30440_MR_d0163",
-        "Sex": "F",
-        "Age": 77.76,
-        "Diagnosis": 2.0
-    },
-    {
         "Subject": "OAS30402",
         "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30402_MR_d0015/anat3/OAS30402_MR_d0015.png",
         "ID": "OAS30402_MR_d0015",
@@ -8918,14 +8886,6 @@
         "Sex": "M",
         "Age": 68.17,
         "Diagnosis": 0.0
-    },
-    {
-        "Subject": "OAS30243",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30243_MR_d0034/anat2/OAS30243_MR_d0034.png",
-        "ID": "OAS30243_MR_d0034",
-        "Sex": "F",
-        "Age": 50.39,
-        "Diagnosis": 2.0
     },
     {
         "Subject": "OAS30367",
@@ -22312,14 +22272,6 @@
         "Diagnosis": 0.0
     },
     {
-        "Subject": "OAS30911",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS30911_MR_d0099/anat2/OAS30911_MR_d0099.png",
-        "ID": "OAS30911_MR_d0099",
-        "Sex": "M",
-        "Age": 73.32,
-        "Diagnosis": 2.0
-    },
-    {
         "Subject": "051_S_1123",
         "slice": "/mnt/projects/MLMI_counterfactual/databases/ADNI/051_S_1123/MPR__GradWarp__B1_Correction__N3/2010-03-22_14_52_54.0/I174832/I174832.png",
         "ID": "I174832",
@@ -24446,14 +24398,6 @@
         "Sex": "F",
         "Age": 71.55,
         "Diagnosis": 0.0
-    },
-    {
-        "Subject": "OAS31156",
-        "slice": "/mnt/projects/MLMI_counterfactual/databases/oasis/OAS31156_MR_d0001/anat2/OAS31156_MR_d0001.png",
-        "ID": "OAS31156_MR_d0001",
-        "Sex": "M",
-        "Age": 81.41,
-        "Diagnosis": 2.0
     },
     {
         "Subject": "021_S_0626",
