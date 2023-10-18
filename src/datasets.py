@@ -39,11 +39,16 @@ class ADNIOASISDataset(Dataset):
         self.df = pd.read_csv(csv_file)
         self.columns = columns
         if self.columns is None:
-            # ['path', 'sex', 'age', 'diagnosis']
+            # ['index', 'path', 'sex', 'age', 'diagnosis']
             self.columns = list(self.df.columns)  # return all
             self.columns.pop(0)  # remove redundant 'index' column
         print(f"columns: {self.columns}")
-        self.samples = {i: torch.as_tensor(self.df[i]).float() for i in self.columns}
+        self.samples = {}
+        for i in self.columns:
+            if i == "path":
+                self.samples[i] = self.df[i]  # Keep the "path" column as it is
+            else:
+                self.samples[i] = torch.as_tensor(self.df[i]).float()  # Convert other columns to PyTorch tensors
 
         for k in ["age"]:
             print(f"{k} normalization: {norm}")
@@ -66,6 +71,14 @@ class ADNIOASISDataset(Dataset):
     def __getitem__(self, idx: int) -> Dict[str, Tensor]:
         sample = {k: v[idx] for k, v in self.samples.items()}
 
+        # # convert diagnosis (0, 0.5, 1) to one-hot encoding
+        sample["diagnosis"] = F.one_hot(torch.tensor([sample["diagnosis"]*2]).long(), num_classes=3).squeeze()
+        
+        # convert age and sex to tensors
+        # sample["diagnosis"] = torch.tensor([sample["diagnosis"]*2])
+        sample["age"] = torch.tensor([sample["age"]])
+        sample["sex"] = torch.tensor([sample["sex"]])
+
         # Load scan
         x = sample["path"]
 
@@ -75,12 +88,12 @@ class ADNIOASISDataset(Dataset):
 
         if self.concat_pa:
             sample["pa"] = torch.cat(
-                [torch.tensor([sample[k]]) for k in self.columns if k != "path"], dim=0
+                [sample[k] for k in self.columns if k != "path"], dim=0
             )
 
         return sample
 
-def adnioasis(args: Hparams) -> Dict[str, UKBBDataset]:
+def adnioasis(args: Hparams) -> Dict[str, ADNIOASISDataset]:
     # Load data
     if not args.data_dir:
         args.data_dir = "../datasets/adnioasis/"
@@ -93,13 +106,12 @@ def adnioasis(args: Hparams) -> Dict[str, UKBBDataset]:
                 transforms.Lambda(func=lambda x: x[0:1,:,:]), # only keep first channel
                 transforms.ScaleIntensityRangePercentiles(lower=40, upper=95.0, b_min=0.0, b_max=255.0, clip=True),
                 transforms.SpatialPad(spatial_size=(256, 256), mode="constant"),
-                TF.Resize((args.input_res, args.input_res)),
+                TF.Resize((args.input_res, args.input_res), antialias=None),
                 TF.RandomCrop(
                     size=(args.input_res, args.input_res),
                     padding=[2 * args.pad, args.pad],
                 ),
                 TF.RandomHorizontalFlip(p=args.hflip),
-                transforms.ToTensor(),
             ]
         ),
         "eval": TF.Compose(
@@ -108,8 +120,7 @@ def adnioasis(args: Hparams) -> Dict[str, UKBBDataset]:
                 transforms.Lambda(func=lambda x: x[0:1,:,:]), # only keep first channel
                 transforms.ScaleIntensityRangePercentiles(lower=40, upper=95.0, b_min=0.0, b_max=1.0, clip=True),
                 transforms.SpatialPad(spatial_size=(256, 256), mode="constant"),
-                TF.Resize((args.input_res, args.input_res)),
-                transforms.ToTensor(),
+                TF.Resize((args.input_res, args.input_res), antialias=None),
             ]
         ),
     }

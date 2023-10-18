@@ -32,7 +32,7 @@ def loginfo(title: str, logger: Any, stats: Dict[str, Any]):
 def inv_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
     # undo [-1,1] parent preprocessing back to original range
     for k, v in pa.items():
-        if k != "mri_seq" and k != "sex":
+        if k != "mri_seq" and k != "sex" and k!="diagnosis" and k!="age":
             pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
             _max, _min = get_attr_max_min(k)
             pa[k] = pa[k] * (_max - _min) + _min

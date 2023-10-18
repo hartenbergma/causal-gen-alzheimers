@@ -8,10 +8,11 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-from datasets import cmnist, mimic, morphomnist, ukbb
+from datasets import cmnist, mimic, morphomnist, ukbb, adnioasis
 from hps import Hparams
 from utils import linear_warmup, seed_worker
 
+import matplotlib.pyplot as plt
 
 def setup_dataloaders(args: Hparams) -> Dict[str, DataLoader]:
     if "ukbb" in args.hps:
@@ -38,6 +39,14 @@ def setup_dataloaders(args: Hparams) -> Dict[str, DataLoader]:
         "valid": DataLoader(datasets["valid"], shuffle=False, **kwargs),
         "test": DataLoader(datasets["test"], shuffle=False, **kwargs),
     }
+
+    # show example image
+    # batch = next(iter(dataloaders["train"]))
+    # img = batch["x"][1,0]
+    # print(f"min: {img.min()}, max: {img.max()}")
+    # img_path = "../datasets/adnioasis/test.png"
+    # plt.imsave(img_path, img, cmap="gray")
+
     return dataloaders
 
 

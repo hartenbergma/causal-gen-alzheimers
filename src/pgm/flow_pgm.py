@@ -129,9 +129,9 @@ class AdniOasisPGM(BasePGM):
 
         # priors: s, a, d (sex, age, diagnosis)
         self.s_logit = nn.Parameter(np.log(1 / 2) * torch.ones(1))
-        for k in ["a"]:
+        for k in ["a","d"]:
             self.register_buffer(f"{k}_base_loc", torch.zeros(1))
-            self.register_buffer(f"{k}_base_scale", torch.ones(1))
+            self.register_buffer(f"{k}_base_scale", torch.ones(1)) 
         self.d_logits = nn.Parameter(np.log(1 / 3) * torch.ones(1, 3))  # uniform prior
 
         # constraint, assumes data is [-1,1] normalized
@@ -148,7 +148,7 @@ class AdniOasisPGM(BasePGM):
         # self.age_module, normalize_transform])
 
         # diagnosis (conditional) via MLP, (s, a) -> d
-        d_net = DenseNN(2, [8, 16], param_dims=[3], nonlinearity=nn.Sigmoid())
+        d_net = DenseNN(2, args.widths, param_dims=[3], nonlinearity=nn.Sigmoid())
         self.d_transform_GumbelMax = ConditionalGumbelMax(
             context_nn=d_net, event_dim=0
         )
@@ -160,11 +160,11 @@ class AdniOasisPGM(BasePGM):
         # q(s | x) = Bernoulli(f(x))
         # self.encoder_s = CNN(input_shape, num_outputs=1)
         # q(s | x, d) = Bernoulli(f(x))
-        self.encoder_s = CNN(input_shape, num_outputs=2, context_dim=1)
+        self.encoder_s = CNN(input_shape, num_outputs=2, context_dim=3) # context_dim = 3 because of one-hot encoding of diagnosis
         # q(a | x) = Normal(mu(x), sigma(x))
         # self.encoder_a = MLP(input_shape, num_outputs=1)
         # q(a | x, d) = Normal(mu(x), sigma(x))
-        self.encoder_a = MLP(input_shape, num_outputs=2, context_dim=1)
+        self.encoder_a = CNN(input_shape, num_outputs=2, context_dim=3) # context_dim = 3 because of one-hot encoding of diagnosis
         # q(d | x) = Categorical(pi(x))
         self.encoder_d = CNN(input_shape, num_outputs=3)
         self.f = (
@@ -188,12 +188,14 @@ class AdniOasisPGM(BasePGM):
         # digit = pyro.sample("diagnosis", pd)
         # p(d | s, a), diagnosis dist
 
-        # p(d | s, a), diagnosis as OneHotCategorical conditioned on age
-        pd_base = dist.Gumbel(self.f_base_loc, self.f_base_scale).to_event(1)
+        # p(d | s, a), diagnosis as OneHotCategorical conditioned on age and sex
+        pd_base = dist.Gumbel(self.d_base_loc, self.d_base_scale).to_event(1)
         pd = ConditionalTransformedDistributionGumbelMax(
             pd_base, [self.d_transform_GumbelMax]
-        ).condition(age)
+        ).condition(torch.cat([sex, age], dim=-1)) # was originally dim=1
         diagnosis = pyro.sample("diagnosis", pd)
+
+        # print(f"{sex=} {age=} {diagnosis=}")
 
         return {
             "sex": sex,
@@ -245,7 +247,8 @@ class AdniOasisPGM(BasePGM):
 
             # q(d | x)
             d_prob = F.softmax(self.encoder_d(obs["x"]), dim=-1)
-            pyro.sample("digit", dist.OneHotCategorical(probs=d_prob).to_event(1))
+            diagnosis = pyro.sample("diagnosis", dist.OneHotCategorical(probs=d_prob).to_event(1))
+            print(f"{diagnosis=}")
 
             # q(s | x, d)
             s_prob = torch.sigmoid(self.encoder_s(obs["x"], y=obs["diagnosis"]))  # .squeeze()
@@ -270,6 +273,7 @@ class AdniOasisPGM(BasePGM):
         # q(a | x)
         a_loc, _ = self.encoder_a(obs['x'], y=obs["diagnosis"]).chunk(2, dim=-1)
 
+        print(f"{sex=} {age=} {diagnosis=}")
 
         return {
             "sex": s_prob,

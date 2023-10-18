@@ -1,18 +1,21 @@
 #!/bin/bash
+pip install -r ../requirements.txt
+
 exp_name="$1"
-run_cmd="python main.py \
-    --exp_name=$exp_name \
-    --data_dir=../datasets/morphomnist \
-    --hps morphomnist \
-    --parents_x thickness intensity digit \
-    --context_dim=12 \
-    --concat_pa \
-    --lr=0.001 \
-    --bs=32 \
-    --wd=0.01 \
-    --beta=1 \
-    --cond_prior \
-    --eval_freq=4"
+
+# run_cmd="python main.py \
+#     --exp_name=$exp_name \
+#     --data_dir=../datasets/morphomnist \
+#     --hps morphomnist \
+#     --parents_x thickness intensity digit \
+#     --context_dim=12 \
+#     --concat_pa \
+#     --lr=0.001 \
+#     --bs=32 \
+#     --wd=0.01 \
+#     --beta=1 \
+#     --cond_prior \
+#     --eval_freq=4"
 
 # run_cmd="python main.py \
 #     --exp_name=$exp_name \
@@ -31,10 +34,10 @@ run_cmd="python main.py \
 
 run_cmd="python main.py \
     --exp_name=$exp_name \
-    --data_dir= \
+    --data_dir= ../datasets/adnioasis \
     --hps adnioasis192 \
     --parents_x sex age diagnosis \
-    --context_dim=4 \
+    --context_dim=5 \
     --concat_pa \
     --lr=0.001 \
     --bs=32 \
@@ -42,7 +45,8 @@ run_cmd="python main.py \
     --beta=5 \
     --x_like=diag_dgauss \
     --z_max_res=96 \
-    --eval_freq=4"
+    --eval_freq=4 "
+    # --resume= ../checkpoints/s_a_d/test1/checkpoint.pt
 
 if [ "$2" = "nohup" ]
 then

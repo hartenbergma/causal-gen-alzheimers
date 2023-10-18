@@ -186,6 +186,9 @@ class DecoderBlock(nn.Module):
         self, z: Tensor, x: Tensor, pa: Tensor, t: Optional[float] = None
     ) -> Tuple[Tensor, Tensor]:
         h = torch.cat([z, pa, x], dim=1)
+
+        # print(h.shape) #torch.Size([1, 2051, 1, 1])
+
         q_loc, q_logscale = self.posterior(h).chunk(2, dim=1)
         if t is not None:
             q_logscale = q_logscale + torch.tensor(t).to(z.device).log()
@@ -264,6 +267,9 @@ class Decoder(nn.Module):
 
             if block.stochastic:
                 if x is not None:  # z_i ~ q(z_i | z_<i, x, pa_x)
+                    
+                    # print(f"h.shape: {h.shape}, x[res].shape: {x[res].shape}, pa.shape: {pa.shape}, t: {t}")
+
                     q_loc, q_logscale = block.forward_posterior(h, x[res], pa, t=t)
                     z = sample_gaussian(q_loc, q_logscale)
                     stat = dict(kl=gaussian_kl(q_loc, q_logscale, p_loc, p_logscale))
@@ -387,7 +393,7 @@ class DGaussNet(nn.Module):
 
     def approx_cdf(self, x: Tensor) -> Tensor:
         return 0.5 * (
-            1.0 + torch.tanh(np.sqrt(2.0 / np.pi) * (x + 0.044715 * torch.pow(x, 3)))
+            1.0 + torch.tanh(torch.tensor(np.sqrt(2.0 / np.pi)) * (x + 0.044715 * torch.pow(x, 3)))
         )
 
     def nll(self, h: Tensor, x: Tensor) -> Tensor:
@@ -425,7 +431,11 @@ class DGaussNet(nn.Module):
 class HVAE(nn.Module):
     def __init__(self, args: Hparams):
         super().__init__()
-        args.vr = "light" if "ukbb" in args.hps else None  # hacky
+        if "ukbb" in args.hps or "adnioasis" in args.hps:
+            args.vr = "light"
+        else:
+            args.vr = None
+        # args.vr = "light" if "ukbb" in args.hps else None  # hacky
         self.encoder = Encoder(args)
         self.decoder = Decoder(args)
         if args.x_like.split("_")[1] == "dgauss":
@@ -438,6 +448,17 @@ class HVAE(nn.Module):
 
     def forward(self, x: Tensor, parents: Tensor, beta: int = 1) -> Dict[str, Tensor]:
         acts = self.encoder(x)
+
+        # for key in acts.keys():
+        #     print(key, acts[key].shape)
+        #     # 64 torch.Size([1, 32, 64, 64])
+        #     # 32 torch.Size([1, 64, 32, 32])
+        #     # 16 torch.Size([1, 128, 16, 16])
+        #     # 8 torch.Size([1, 256, 8, 8])
+        #     # 4 torch.Size([1, 512, 4, 4])
+        #     # 1 torch.Size([1, 1024, 1, 1])
+        # print(parents.shape) # torch.Size([1, 3, 64, 64])
+           
         h, stats = self.decoder(parents=parents, x=acts)
         nll_pp = self.likelihood.nll(h, x)
         if self.free_bits > 0:

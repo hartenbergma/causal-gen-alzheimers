@@ -18,6 +18,9 @@ def preprocess_batch(args: Hparams, batch: Dict[str, Tensor], expand_pa: bool = 
     batch["pa"] = batch["pa"].to(args.device).float()
     if expand_pa:  # used for HVAE parent concatenation
         batch["pa"] = batch["pa"][..., None, None].repeat(1, 1, *(args.input_res,) * 2)
+
+    # print(batch["x"].shape) #torch.Size([1, 1, 64, 64])
+    # print(batch["pa"].shape) #torch.Size([1, 1, 64, 64])
     return batch
 
 

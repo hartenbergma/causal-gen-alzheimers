@@ -226,12 +226,17 @@ def eval_epoch(
             if k == "diagnosis":
                 num_corrects = (targets[k].argmax(-1) == preds[k].argmax(-1)).sum()
                 stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
+                stats[k + "_rocauc"] = roc_auc_score(
+                    targets[k].numpy(),
+                    preds[k].numpy(),
+                    multi_class="ovr",
+                    average="macro",
+                )
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
                 _max, _min = get_attr_max_min(k)
                 preds_k = preds_k * (_max - _min) + _min
-                norm = 1000 if "volume" in k else 1  # for volume in ml
-                stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item() / norm
+                stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item()
         elif args.dataset == "morphomnist":
             if k == "digit":
                 num_corrects = (targets[k].argmax(-1) == preds[k].argmax(-1)).sum()

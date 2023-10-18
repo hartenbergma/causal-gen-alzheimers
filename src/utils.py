@@ -356,7 +356,14 @@ def write_images(args: Hparams, model: nn.Module, batch: Dict[str, Tensor]):
                     cf_pa[2, 2] = _pa[idx[ii], 2]  # random vvol intervention
                 else:
                     NotImplementedError(f"{args.parents_x} not configured.")
-
+            if "adnioasis" in args.hps:
+                if args.parents_x == ["sex", "age", "diagnosis"]:
+                    assert args.context_dim == 3
+                    cf_pa[0, 0] = 1 - cf_pa[0,0]  # invert sex
+                    cf_pa[1, 1] = _pa[idx[ii], 1]  # random age intervention
+                    cf_pa[2, 2] = _pa[idx[ii], 2]  # random diagnosis intervention
+                else:
+                    NotImplementedError(f"{args.parents_x} not configured.")
             elif "morphomnist" in args.hps:
                 assert args.context_dim == 12
                 cf_pa[0, 0] = _pa[idx[ii], 0]  # random thickness intervention

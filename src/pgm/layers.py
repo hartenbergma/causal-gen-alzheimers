@@ -174,8 +174,8 @@ class ArgMaxGumbelMax(Transform):
 class ConditionalGumbelMax(ConditionalTransformModule):
     def __init__(self, context_nn, event_dim=0, **kwargs):
         super().__init__(**kwargs)
-        self.context_nn = context_nn
-        self.event_dim = event_dim
+        self.context_nn = context_nn # d_net 
+        self.event_dim = event_dim # 0
 
     def condition(self, context):
         logits = self.context_nn(context)
@@ -210,7 +210,7 @@ class TransformedDistributionGumbelMax(TransformedDistribution, TorchDistributio
             x = transform.inv(y)
             event_dim += transform.domain.event_dim - transform.codomain.event_dim
             log_prob = log_prob - _sum_rightmost(
-                transform.log_abs_det_jacobian(x, y),
+                transform.log_abs_det_jacobian(x), #transform.log_abs_det_jacobian(x, y),
                 event_dim - transform.domain.event_dim,
             )
             y = x
@@ -219,8 +219,8 @@ class TransformedDistributionGumbelMax(TransformedDistribution, TorchDistributio
 
 class ConditionalTransformedDistributionGumbelMax(ConditionalTransformedDistribution):
     def condition(self, context):
-        base_dist = self.base_dist.condition(context)
-        transforms = [t.condition(context) for t in self.transforms]
+        base_dist = self.base_dist.condition(context) # context = torch.cat(["sex", "age"], dim=-1)
+        transforms = [t.condition(context) for t in self.transforms] # t = ConditionalGumbelMax(context_nn, event_dim=0)
         return TransformedDistributionGumbelMax(base_dist, transforms)
 
     def clear_cache(self):
