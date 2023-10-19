@@ -152,6 +152,7 @@ class ArgMaxGumbelMax(Transform):
         )
         gumbels = -((-(uniforms.log())).log())
         # (batch_size, num_classes) mask to select kth class
+        # print(f"{torch.min(k)}, {torch.max(k)}, {k.shape}, {self.logits.shape}")
         mask = F.one_hot(
             k.squeeze(-1).to(torch.int64), num_classes=self.logits.shape[-1]
         )
@@ -210,7 +211,7 @@ class TransformedDistributionGumbelMax(TransformedDistribution, TorchDistributio
             x = transform.inv(y)
             event_dim += transform.domain.event_dim - transform.codomain.event_dim
             log_prob = log_prob - _sum_rightmost(
-                transform.log_abs_det_jacobian(x), #transform.log_abs_det_jacobian(x, y),
+                transform.log_abs_det_jacobian(y), #transform.log_abs_det_jacobian(x, y),
                 event_dim - transform.domain.event_dim,
             )
             y = x

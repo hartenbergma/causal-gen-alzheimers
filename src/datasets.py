@@ -97,7 +97,7 @@ class ADNIOASISDataset(Dataset):
     def get_attr_max_min(attr: str):
         # some adnioasis dataset (max, min) stats
         if attr == "age":
-            return 73, 44
+            return 97.09, 42.69
         else:
             NotImplementedError
 

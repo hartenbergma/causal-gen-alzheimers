@@ -12,6 +12,11 @@ df = df.rename(columns={'Age': 'age'})
 df = df.rename(columns={'Sex': 'sex'})
 df = df.rename(columns={'Diagnosis': 'diagnosis'})
 
+# get min and max age
+min_age = df['age'].min()
+max_age = df['age'].max()
+print(f"Min age: {min_age}, Max age: {max_age}")
+
 # convert M to 0 and F to 1 in Sex column
 df['sex'] = df['sex'].replace({'M': 0, 'F': 1})
 

@@ -37,7 +37,7 @@ run_cmd="python main.py \
     --data_dir= ../datasets/adnioasis \
     --hps adnioasis192 \
     --parents_x sex age diagnosis \
-    --context_dim=5 \
+    --context_dim=3 \
     --concat_pa \
     --lr=0.001 \
     --bs=32 \

@@ -12,28 +12,34 @@ from layers import TraceStorage_ELBO
 from sklearn.metrics import roc_auc_score
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from tqdm import tqdm
 from utils_pgm import plot_joint, update_stats
 
 sys.path.append("..")
-from datasets import cmnist, get_attr_max_min, mimic, morphomnist, ukbb, adnioasis
+from datasets import cmnist, mimic, morphomnist, ukbb, adnioasis, ADNIOASISDataset, UKBBDataset
 from hps import Hparams
 from train_setup import setup_directories, setup_logging, setup_tensorboard
 from utils import EMA, seed_all, seed_worker
 
 
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+else:
+    device = torch.device("cpu")
+
 def preprocess(
     batch: Dict[str, Tensor], dataset: str = "ukbb", split: str = "l"
 ) -> Dict[str, Tensor]:
     if "x" in batch.keys():
-        batch["x"] = (batch["x"].float().cuda() - 127.5) / 127.5  # [-1,1]
+        batch["x"] = (batch["x"].float().to(device) - 127.5) / 127.5  # [-1,1]
     # for all other variables except x
     not_x = [k for k in batch.keys() if k != "x"]
     for k in not_x:
         if split == "u":  # unlabelled
             batch[k] = None
         elif split == "l":  # labelled
-            batch[k] = batch[k].float().cuda()
+            batch[k] = batch[k].float().to(device)
             if len(batch[k].shape) < 2:
                 batch[k] = batch[k].unsqueeze(-1)
         else:
@@ -41,13 +47,13 @@ def preprocess(
     if "ukbb" in dataset:
         for k in not_x:
             if k in ["age", "brain_volume", "ventricle_volume"]:
-                k_max, k_min = get_attr_max_min(k)
+                k_max, k_min = UKBBDataset.get_attr_max_min(k)
                 batch[k] = (batch[k] - k_min) / (k_max - k_min)  # [0,1]
                 batch[k] = 2 * batch[k] - 1  # [-1,1]
     if "adnioasis" in dataset:
         for k in not_x:
             if k in ["age"]:
-                k_max, k_min = get_attr_max_min(k)
+                k_max, k_min = ADNIOASISDataset.get_attr_max_min(k)
                 batch[k] = (batch[k] - k_min) / (k_max - k_min)  # [0,1]
                 batch[k] = 2 * batch[k] - 1  # [-1,1]
     return batch
@@ -211,7 +217,7 @@ def eval_epoch(
                 ).sum().item() / targets[k].shape[0]
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
-                _max, _min = get_attr_max_min(k)
+                _max, _min = UKBBDataset.get_attr_max_min(k)
                 preds_k = preds_k * (_max - _min) + _min
                 norm = 1000 if "volume" in k else 1  # for volume in ml
                 stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item() / norm
@@ -223,18 +229,20 @@ def eval_epoch(
                 stats[k + "_acc"] = (
                     targets[k] == torch.round(preds[k])
                 ).sum().item() / targets[k].shape[0]
-            if k == "diagnosis":
-                num_corrects = (targets[k].argmax(-1) == preds[k].argmax(-1)).sum()
+            elif k == "diagnosis":
+                num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
                 stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
+                # print(f"tartets min: {targets[k].min()}\n max: {targets[k].max()}\n shape: {targets[k].shape}\n unique values: {targets[k].unique()}")
+                targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
                 stats[k + "_rocauc"] = roc_auc_score(
-                    targets[k].numpy(),
+                    targets_onehot.numpy(),
                     preds[k].numpy(),
                     multi_class="ovr",
                     average="macro",
                 )
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
-                _max, _min = get_attr_max_min(k)
+                _max, _min = ADNIOASISDataset.get_attr_max_min(k)
                 preds_k = preds_k * (_max - _min) + _min
                 stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item()
         elif args.dataset == "morphomnist":
@@ -452,8 +460,8 @@ if __name__ == "__main__":
     else:
         NotImplementedError
     ema = EMA(model, beta=0.999)
-    model.cuda()
-    ema.cuda()
+    model.to(device)
+    ema.to(device)
 
     # Init loss & optimizer
     elbo_fn = TraceStorage_ELBO(num_particles=2)
@@ -556,7 +564,7 @@ if __name__ == "__main__":
 
             if epoch % args.eval_freq == 0:
                 if not args.setup == "sup_pgm":  # eval aux classifiers
-                    metrics = eval_epoch(args, ema.ema_model, dataloaders["valid"])
+                    metrics = eval_epoch(args, ema.ema_model, dataloaders["train"])
                     logger.info(
                         "valid | "
                         + " - ".join(f"{k}: {v:.4f}" for k, v in metrics.items())

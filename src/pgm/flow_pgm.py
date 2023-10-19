@@ -109,7 +109,7 @@ class BasePGM(nn.Module):
                         and "sex" not in intervention.keys()
                         and "diagnosis" not in intervention.keys()
                     ):
-                        counterfactuals["finding"] = obs["finding"]
+                        counterfactuals["diagnosis"] = obs["diagnosis"]
 
             for k, v in counterfactuals.items():
                 avg_cfs[k] += v / num_particles
@@ -128,11 +128,10 @@ class AdniOasisPGM(BasePGM):
         self.discrete_variables = {"diagnosis": "categorical"}
 
         # priors: s, a, d (sex, age, diagnosis)
-        self.s_logit = nn.Parameter(np.log(1 / 2) * torch.ones(1))
+        self.s_logit = nn.Parameter(torch.zeros(1))
         for k in ["a","d"]:
             self.register_buffer(f"{k}_base_loc", torch.zeros(1))
             self.register_buffer(f"{k}_base_scale", torch.ones(1)) 
-        self.d_logits = nn.Parameter(np.log(1 / 3) * torch.ones(1, 3))  # uniform prior
 
         # constraint, assumes data is [-1,1] normalized
         # normalize_transform = T.ComposeTransform([
@@ -147,26 +146,28 @@ class AdniOasisPGM(BasePGM):
         self.age_flow = T.ComposeTransform([self.age_module])
         # self.age_module, normalize_transform])
 
-        # diagnosis (conditional) via MLP, (s, a) -> d
+        # diagnosis (conditional) via MLP, (s, a) -> d (output one-hot encoded)
         d_net = DenseNN(2, args.widths, param_dims=[3], nonlinearity=nn.Sigmoid())
         self.d_transform_GumbelMax = ConditionalGumbelMax(
             context_nn=d_net, event_dim=0
         )
-        # self.bvol_flow = [self.bvol_flow, normalize_transform]
 
         # if args.setup != 'sup_pgm':
         # anticausal predictors
+        # input shape: shape of input image
+        # num_outputs: number of distribution parameters
+        # context_dim: dimension of context vector (additional inputs apart from image)
         input_shape = (args.input_channels, args.input_res, args.input_res)
         # q(s | x) = Bernoulli(f(x))
         # self.encoder_s = CNN(input_shape, num_outputs=1)
         # q(s | x, d) = Bernoulli(f(x))
-        self.encoder_s = CNN(input_shape, num_outputs=2, context_dim=3) # context_dim = 3 because of one-hot encoding of diagnosis
+        self.encoder_s = CNN(input_shape, num_outputs=1, context_dim=1)
         # q(a | x) = Normal(mu(x), sigma(x))
         # self.encoder_a = MLP(input_shape, num_outputs=1)
         # q(a | x, d) = Normal(mu(x), sigma(x))
-        self.encoder_a = CNN(input_shape, num_outputs=2, context_dim=3) # context_dim = 3 because of one-hot encoding of diagnosis
+        self.encoder_a = CNN(input_shape, num_outputs=2, context_dim=1)
         # q(d | x) = Categorical(pi(x))
-        self.encoder_d = CNN(input_shape, num_outputs=3)
+        self.encoder_d = CNN(input_shape, num_outputs=3, width=64) # (output class logits)
         self.f = (
             lambda x: args.std_fixed * torch.ones_like(x)
             if args.std_fixed > 0
@@ -192,8 +193,8 @@ class AdniOasisPGM(BasePGM):
         pd_base = dist.Gumbel(self.d_base_loc, self.d_base_scale).to_event(1)
         pd = ConditionalTransformedDistributionGumbelMax(
             pd_base, [self.d_transform_GumbelMax]
-        ).condition(torch.cat([sex, age], dim=-1)) # was originally dim=1
-        diagnosis = pyro.sample("diagnosis", pd)
+        ).condition(torch.cat([sex, age], dim=1))
+        diagnosis = pyro.sample("diagnosis", pd) # (output label encoded)
 
         # print(f"{sex=} {age=} {diagnosis=}")
 
@@ -221,7 +222,7 @@ class AdniOasisPGM(BasePGM):
             # q(d | x)
             if obs["diagnosis"] is None:
                 d_prob = F.softmax(self.encoder_d(obs["x"]), dim=-1)
-                obs["diagnosis"] = pyro.sample("diagnosis", dist.OneHotCategorical(probs=d_prob).to_event(1))
+                obs["diagnosis"] = pyro.sample("diagnosis", dist.Categorical(probs=d_prob).to_event(1))
 
             # q(s | x, d)
             if obs["sex"] is None:
@@ -247,16 +248,15 @@ class AdniOasisPGM(BasePGM):
 
             # q(d | x)
             d_prob = F.softmax(self.encoder_d(obs["x"]), dim=-1)
-            diagnosis = pyro.sample("diagnosis", dist.OneHotCategorical(probs=d_prob).to_event(1))
-            print(f"{diagnosis=}")
+            diagnosis = pyro.sample("diagnosis_aux", dist.Categorical(probs=d_prob).to_event(1), obs=obs["diagnosis"])
 
             # q(s | x, d)
             s_prob = torch.sigmoid(self.encoder_s(obs["x"], y=obs["diagnosis"]))  # .squeeze()
-            pyro.sample("sex", dist.Bernoulli(probs=s_prob).to_event(1))
+            pyro.sample("sex_aux", dist.Bernoulli(probs=s_prob).to_event(1), obs=obs["sex"])
 
             # q(a | x, d)
             a_loc, a_logscale = self.encoder_a(obs["x"], y=obs["diagnosis"]).chunk(2, dim=-1)
-            pyro.sample("age", dist.Normal(a_loc, self.f(a_logscale)).to_event(1))
+            pyro.sample("age_aux", dist.Normal(a_loc, self.f(a_logscale)).to_event(1), obs=obs["age"])
 
     def predict(self, **obs) -> Dict[str, Tensor]:
         # q(s | x)
@@ -273,7 +273,7 @@ class AdniOasisPGM(BasePGM):
         # q(a | x)
         a_loc, _ = self.encoder_a(obs['x'], y=obs["diagnosis"]).chunk(2, dim=-1)
 
-        print(f"{sex=} {age=} {diagnosis=}")
+        # print(f"{sex=} {age=} {diagnosis=}")
 
         return {
             "sex": s_prob,
