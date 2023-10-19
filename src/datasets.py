@@ -72,10 +72,10 @@ class ADNIOASISDataset(Dataset):
         sample = {k: v[idx] for k, v in self.samples.items()}
 
         # # convert diagnosis (0, 0.5, 1) to one-hot encoding
-        sample["diagnosis"] = F.one_hot(torch.tensor([sample["diagnosis"]*2]).long(), num_classes=3).squeeze()
+        # sample["diagnosis"] = F.one_hot(torch.tensor([sample["diagnosis"]*2]).long(), num_classes=3).squeeze()
         
         # convert age and sex to tensors
-        # sample["diagnosis"] = torch.tensor([sample["diagnosis"]*2])
+        sample["diagnosis"] = torch.tensor([sample["diagnosis"]*2])
         sample["age"] = torch.tensor([sample["age"]])
         sample["sex"] = torch.tensor([sample["sex"]])
 
@@ -92,6 +92,14 @@ class ADNIOASISDataset(Dataset):
             )
 
         return sample
+
+    @staticmethod
+    def get_attr_max_min(attr: str):
+        # some adnioasis dataset (max, min) stats
+        if attr == "age":
+            return 73, 44
+        else:
+            NotImplementedError
 
 def adnioasis(args: Hparams) -> Dict[str, ADNIOASISDataset]:
     # Load data
@@ -205,17 +213,17 @@ class UKBBDataset(Dataset):
 
         return sample
 
-
-def get_attr_max_min(attr: str):
-    # some ukbb dataset (max, min) stats
-    if attr == "age":
-        return 73, 44
-    elif attr == "brain_volume":
-        return 1629520, 841919
-    elif attr == "ventricle_volume":
-        return 157075, 7613.27001953125
-    else:
-        NotImplementedError
+    @staticmethod
+    def get_attr_max_min(attr: str):
+        # some ukbb dataset (max, min) stats
+        if attr == "age":
+            return 73, 44
+        elif attr == "brain_volume":
+            return 1629520, 841919
+        elif attr == "ventricle_volume":
+            return 157075, 7613.27001953125
+        else:
+            NotImplementedError
 
 
 def ukbb(args: Hparams) -> Dict[str, UKBBDataset]:
