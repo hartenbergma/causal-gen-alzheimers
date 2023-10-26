@@ -8,7 +8,7 @@ from layers import TraceStorage_ELBO
 from torch import Tensor, nn
 from utils_pgm import check_nan
 
-from datasets import get_attr_max_min
+from datasets import UKBBDataset, ADNIOASISDataset
 from hps import Hparams
 
 
@@ -103,7 +103,7 @@ def ukbb_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
     for k, v in pa.items():
         if k != "mri_seq" and k != "sex":
             pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
-            _max, _min = get_attr_max_min(k)
+            _max, _min = UKBBDataset.get_attr_max_min(k)
             pa[k] = pa[k] * (_max - _min) + _min
 
     # log-standardize parents for vae input
@@ -117,10 +117,30 @@ def ukbb_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
             pa[k] = (logpa_k - 10.345998764038086) / 0.43127763271331787
     return pa
 
+def adnioasisi_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
+    """hack for preprocessing adnioasis parents for the vae which was originally trained using
+    log-standardized parents, whereas the pgm was trained using [-1,1] normalization"""
+
+    for k, v in pa.items():
+        if k == "age":
+            # first undo [-1,1] parent preprocessing back to original range
+            pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
+            _max, _min = ADNIOASISDataset.get_attr_max_min(k)
+            pa[k] = pa[k] * (_max - _min) + _min 
+
+            # log-standardize parents for vae input
+            logpa_k = torch.log(v.clamp(min=1e-12))
+            pa[k] = (logpa_k - 4.295305147924922) / 0.13014071547419478
+
+    #     elif k == "diagnosis":
+    #         pa[k] = v/2
+    return pa
 
 def vae_preprocess(args: Hparams, pa: Dict[str, Tensor]) -> Tensor:
     if "ukbb" in args.dataset:
         pa = ukbb_preprocess(pa)
+    if "adni" in args.dataset:
+        pa = adnioasisi_preprocess(pa)
     # concatenate parents, expand to input res for conditioning the vae
     concat_pa = torch.cat(
         [pa[k] if len(pa[k].shape) > 1 else pa[k][..., None] for k in args.parents_x],

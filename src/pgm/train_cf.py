@@ -8,17 +8,18 @@ from typing import Any, Dict, List, Optional, Tuple
 import matplotlib.pyplot as plt
 import torch
 from dscm import DSCM
-from flow_pgm import FlowPGM
+from flow_pgm import AdniOasisPGM
 from layers import TraceStorage_ELBO
 from sklearn.metrics import roc_auc_score
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from tqdm import tqdm
 from train_pgm import eval_epoch, preprocess, sup_epoch
 from utils_pgm import plot_cf, update_stats
 
 sys.path.append("..")
-from datasets import get_attr_max_min
+from datasets import ADNIOASISDataset, UKBBDataset
 from hps import Hparams
 from train_setup import setup_directories, setup_logging, setup_tensorboard
 from utils import EMA, seed_all
@@ -32,9 +33,9 @@ def loginfo(title: str, logger: Any, stats: Dict[str, Any]):
 def inv_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
     # undo [-1,1] parent preprocessing back to original range
     for k, v in pa.items():
-        if k != "mri_seq" and k != "sex" and k!="diagnosis" and k!="age":
+        if k != "mri_seq" and k != "sex" and k!="diagnosis":
             pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
-            _max, _min = get_attr_max_min(k)
+            _max, _min = ADNIOASISDataset.get_attr_max_min(k)
             pa[k] = pa[k] * (_max - _min) + _min
     return pa
 
@@ -78,7 +79,7 @@ def get_metrics(
                 ).sum().item() / targets[k].shape[0]
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
-                _max, _min = get_attr_max_min(k)
+                _max, _min = UKBBDataset.get_attr_max_min(k)
                 preds_k = preds_k * (_max - _min) + _min
                 norm = 1000 if "volume" in k else 1  # for volume in ml
                 stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item() / norm
@@ -90,15 +91,21 @@ def get_metrics(
                 stats[k + "_acc"] = (
                     targets[k] == torch.round(preds[k])
                 ).sum().item() / targets[k].shape[0]
-            if k == "diagnosis":
-                num_corrects = (targets[k].argmax(-1) == preds[k].argmax(-1)).sum()
+            elif k == "diagnosis":
+                num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
                 stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
+                targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
+                stats[k + "_rocauc"] = roc_auc_score(
+                    targets_onehot.numpy(),
+                    preds[k].numpy(),
+                    multi_class="ovr",
+                    average="macro",
+                )
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
-                _max, _min = get_attr_max_min(k)
+                _max, _min = ADNIOASISDataset.get_attr_max_min(k)
                 preds_k = preds_k * (_max - _min) + _min
-                norm = 1000 if "volume" in k else 1  # for volume in ml
-                stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item() / norm
+                stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item()
         elif "mimic" in dataset:
             if k in ["sex", "finding"]:
                 stats[k + "_rocauc"] = roc_auc_score(
@@ -161,13 +168,24 @@ def cf_epoch(
         with torch.no_grad():
             # randomly intervene on a single parent do(pa_k ~ p(pa_k))
             do = {}
-            do_k = copy.deepcopy(args.do_pa) if args.do_pa else random.choice(dag_vars)
+            if args.do_pa in ["sex", "age", "diagnosis"]:
+                do_k = copy.deepcopy(args.do_pa)
+            else:
+                do_k = random.choice(dag_vars)
+
+
             if is_train:
                 do[do_k] = batch[do_k].clone()[torch.randperm(bs)]
             else:
                 idx = torch.randperm(train_set[do_k].shape[0])
                 do[do_k] = train_set[do_k].clone()[idx][:bs]
+                # print(do)
                 do = preprocess(do)
+
+        # if do_k == "diagnosis":
+        #     print(batch[do_k])
+        #     print(do[do_k])
+        #     print(train_set)
 
         with torch.set_grad_enabled(is_train):
             # if not is_train:
@@ -187,14 +205,17 @@ def cf_epoch(
             out["loss"].backward()
             grad_norm = nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
 
-            if grad_norm < args.grad_skip:
-                optimizer.step()
-                lagrange_opt.step()  # gradient ascent on lmbda
-                model.lmbda.data.clamp_(min=0)
-                ema.update()
-            else:
-                steps_skipped += 1
-                print(f"Steps skipped: {steps_skipped} - grad_norm: {grad_norm:.3f}")
+            print(grad_norm)
+            print(args.grad_skip)
+
+            # if grad_norm < args.grad_skip:
+            optimizer.step()
+            lagrange_opt.step()  # gradient ascent on lmbda
+            model.lmbda.data.clamp_(min=0)
+            ema.update()
+            # else:
+            #     steps_skipped += 1
+            #     print(f"Steps skipped: {steps_skipped} - grad_norm: {grad_norm:.3f}")
         else:  # evaluation
             with torch.no_grad():
                 preds_cf = ema.ema_model.predictor.predict(**out["cfs"])
@@ -216,8 +237,8 @@ def cf_epoch(
                     loginfo(f"valid do({pa_k})", logger, valid_stats)
                     loginfo(f"valid do({pa_k})", logger, valid_metrics)
                 args.do_pa = copy_do_pa
-            # save_path = os.path.join(args.save_dir, f'{args.step}_{split}_{do_k}_cfs.pdf')
-            # save_plot(save_path, batch, out['cfs'], do, out['var_cf_x'], num_images=args.imgs_plot)
+            save_path = os.path.join(args.save_dir, f'{args.step}_{split}_{do_k}_cfs.pdf')
+            save_plot(save_path, batch, out['cfs'], do, out['var_cf_x'], num_images=args.imgs_plot)
 
         stats["n"] += bs
         stats["loss"] += out["loss"].item() * bs
@@ -321,12 +342,13 @@ if __name__ == "__main__":
     predictor_checkpoint = torch.load(args.predictor_path)
     predictor_args = Hparams()
     predictor_args.update(predictor_checkpoint["hparams"])
-    predictor = FlowPGM(predictor_args).cuda()
+    predictor = AdniOasisPGM(predictor_args).cuda()
     predictor.load_state_dict(predictor_checkpoint["ema_model_state_dict"])
 
     # for backwards compatibility
     if not hasattr(predictor_args, "dataset"):
         predictor_args.dataset = "ukbb"
+        print("predictor_args.dataset = 'ukbb'")
     if hasattr(predictor_args, "loss_norm"):
         args.loss_norm
 
@@ -354,12 +376,13 @@ if __name__ == "__main__":
     pgm_checkpoint = torch.load(args.pgm_path)
     pgm_args = Hparams()
     pgm_args.update(pgm_checkpoint["hparams"])
-    pgm = FlowPGM(pgm_args).cuda()
+    pgm = AdniOasisPGM(pgm_args).cuda()
     pgm.load_state_dict(pgm_checkpoint["ema_model_state_dict"])
 
     # for backwards compatibility
     if not hasattr(pgm_args, "dataset"):
         pgm_args.dataset = "ukbb"
+        print("pgm_args.dataset = 'ukbb'")
     if args.data_dir != "":
         pgm_args.data_dir = args.data_dir
     dataloaders = setup_dataloaders(pgm_args)
@@ -376,13 +399,17 @@ if __name__ == "__main__":
     vae_args.update(vae_checkpoint["hparams"])
     if not hasattr(vae_args, "cond_prior"):  # for backwards compatibility
         vae_args.cond_prior = False
-    vae_args.kl_free_bits = vae_args.free_bits
+    # vae_args.kl_free_bits = vae_args.free_bits
+    vae_args.free_bits = vae_args.kl_free_bits
     vae = HVAE(vae_args).cuda()
     vae.load_state_dict(vae_checkpoint["ema_model_state_dict"])
 
     # vae_args.data_dir = None  # adjust data_dir as needed
     if args.data_dir != "":
         vae_args.data_dir = args.data_dir
+    if not hasattr(vae_args, "dataset"):
+        vae_args.dataset = "adnioasis"
+        print("vae_args.dataset = 'adnioasis'")
     dataloaders = setup_dataloaders(vae_args)
 
     @torch.no_grad()
@@ -426,10 +453,9 @@ if __name__ == "__main__":
     args.elbo_constraint = 1.841216802597046  # train set elbo constraint
     args.wd = vae_args.wd
     args.betas = vae_args.betas
+    args.dataset = vae_args.dataset
 
     # init model
-    if not hasattr(vae_args, "dataset"):
-        args.dataset = "ukbb"
     model = DSCM(args, pgm, predictor, vae)
     ema = EMA(model, beta=args.ema_rate)
     model.cuda()

@@ -65,8 +65,15 @@ def main(args: Hparams):
     # setup optimizer
     optimizer, scheduler = setup_optimizer(args, model)
 
-    args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    torch.cuda.set_device(args.device)
+    if torch.cuda.is_available():
+    # Set the device to the first available GPU
+        args.device = torch.device("cuda:0")
+        torch.cuda.set_device(args.device)
+        print(f"Using GPU: {args.device}")
+    else:
+        # If no GPU is available, use the CPU
+        args.device = torch.device("cpu")
+        print("Using CPU")
     model.to(args.device)
     ema.to(args.device)
 

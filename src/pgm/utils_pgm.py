@@ -165,6 +165,128 @@ def plot(
     return fig, ax
 
 
+# @torch.no_grad()
+# def plot_cf(
+#     x: Tensor,
+#     cf_x: Tensor,
+#     pa: Dict[str, Tensor],
+#     cf_pa: Dict[str, Tensor],
+#     do: Dict[str, Tensor],
+#     var_cf_x: Optional[Tensor],
+#     num_images: int = 8,
+# ):
+#     n = num_images  # 8 columns
+#     x = (x[:n].detach().cpu() + 1) * 127.5
+#     cf_x = (cf_x[:n].detach().cpu() + 1) * 127.5
+
+#     fs = 24  # font size
+#     pad = 8
+#     m = 3 if var_cf_x is None else 4  # nrows
+#     s = 5
+#     fig, ax = plt.subplots(m, n, figsize=(n * s - 6, m * s), facecolor="white")
+#     # fig, ax = plt.subplots(m, n, figsize=(n*s, m*s+2))
+#     _, _ = plot(x, ax=ax[0])
+#     _, _ = plot(cf_x, ax=ax[1])
+#     _, _ = plot(
+#         cf_x - x,
+#         ax=ax[2],
+#         fig=fig,
+#         cmap="RdBu_r",
+#         cbar=True,
+#         norm=MidpointNormalize(midpoint=0),
+#     )
+#     if var_cf_x is not None:
+#         _, _ = plot(
+#             var_cf_x[:n].clamp(min=0).detach().sqrt().cpu(),
+#             fig=fig,
+#             cmap="jet",
+#             ax=ax[3],
+#             cbar=True,
+#             set_cbar_ticks=False,
+#         )
+
+#     # TODO: adapt for adnioasis
+#     sex_categories = ["female", "male"]  # 0,1
+#     mriseq_categories = ["T1", "T2"]  # 0,1
+
+#     for j in range(n):
+#         msg = r"$do($"
+#         for i, (k, v) in enumerate(do.items()):
+#             if k == "sex":
+#                 vv = sex_categories[int(v[j].item())]
+#                 kk = "s"
+#             elif k == "mri_seq":
+#                 vv = mriseq_categories[int(v[j].item())]
+#                 kk = "m"
+#             elif k == "age":
+#                 vv = str(v[j].item())
+#                 kk = "a"
+#             else:
+#                 vv = str(np.round(v[j].item() / 1000, 1))
+#                 kk = k[0]
+#             msg += rf"${kk}{{=}}$" + f"{vv}"
+#             msg += ", " if (i + 1) < len(list(do.keys())) else ""
+
+#         ax[1, j].set_title(msg + r"$)$", fontsize=fs - 2, pad=pad + 4)
+
+#         s = str(sex_categories[int(pa["sex"][j].item())])
+#         m = str(mriseq_categories[int(pa["mri_seq"][j].item())])
+#         a = str(int(pa["age"][j].item()))
+#         b = str(np.round(pa["brain_volume"][j].item() / 1000, 1))  # ml
+#         v = str(np.round(pa["ventricle_volume"][j].item() / 1000, 1))  # ml
+
+#         # ax[0,j].set_title(rf'$a{{=}}{a}, \ s{{=}}{s}, \ m{{=}}{m}$' +'\n'+ rf'$b{{=}}{b}, \ v{{=}}{v}$',
+#         #                 pad=pad, fontsize=fs-4, multialignment='center', linespacing=1.5)
+
+#         ax[0, j].set_title(
+#             rf"$m{{=}}$"
+#             + f"{m}"
+#             + "$, \ a{{=}}$"
+#             + f"{a}"
+#             + rf"$, \ s{{=}}$"
+#             + f"{s}"
+#             + "\n"
+#             + rf"$b{{=}}{b}, \ v{{=}}{v}$",
+#             pad=pad + 2,
+#             fontsize=fs - 8,
+#             multialignment="center",
+#             linespacing=1.5,
+#         )
+
+#         # plot counterfactual
+#         cf_s = str(sex_categories[int(cf_pa["sex"][j].item())])
+#         cf_m = str(mriseq_categories[int(cf_pa["mri_seq"][j].item())])
+#         cf_a = str(np.round(cf_pa["age"][j].item(), 1))
+#         cf_b = str(np.round(cf_pa["brain_volume"][j].item() / 1000, 1))  # ml
+#         cf_v = str(np.round(cf_pa["ventricle_volume"][j].item() / 1000, 1))  # ml
+
+#         # ax[1, j].set_xlabel(rf'$\widetilde{{a}}{{=}}{cf_a}, \ \widetilde{{s}}{{=}}{cf_s}, \ \widetilde{{m}}{{=}}{cf_m}$' +'\n'+
+#         #     rf'$\widetilde{{b}}{{=}}{cf_b}, \ \widetilde{{v}}{{=}}{cf_v}$',
+#         #                 labelpad=pad+1, fontsize=fs-4, multialignment='center', linespacing=1.25)
+
+#         ax[1, j].set_xlabel(
+#             rf"$\widetilde{{m}}{{=}}$"
+#             + f"{cf_m}"
+#             + "$, \ \widetilde{{a}}{{=}}$"
+#             + f"{cf_a}"
+#             rf"$, \ \widetilde{{s}}{{=}}$"
+#             + f"{cf_s}"
+#             + "\n"
+#             + rf"$\widetilde{{b}}{{=}}{cf_b}, \ \widetilde{{v}}{{=}}{cf_v}$",
+#             labelpad=pad + 4,
+#             fontsize=fs - 8,
+#             multialignment="center",
+#             linespacing=1.25,
+#         )
+
+#     ax[0, 0].set_ylabel("Observation", fontsize=fs + 4, labelpad=pad)
+#     ax[1, 0].set_ylabel("Counterfactual", fontsize=fs + 4, labelpad=pad)
+#     ax[2, 0].set_ylabel("Direct Effect", fontsize=fs + 4, labelpad=pad)
+#     if var_cf_x is not None:
+#         ax[3, 0].set_ylabel("Uncertainty", fontsize=fs + 4, labelpad=pad)
+#     return fig
+
+
 @torch.no_grad()
 def plot_cf(
     x: Tensor,
@@ -205,9 +327,8 @@ def plot_cf(
             set_cbar_ticks=False,
         )
 
-    # TODO: adapt for adnioasis
-    sex_categories = ["female", "male"]  # 0,1
-    mriseq_categories = ["T1", "T2"]  # 0,1
+    sex_categories = ["male", "female"]  # 0,1
+    diagnosis_categories = ["CN", "MCI", "AD"]  # 0,1,2
 
     for j in range(n):
         msg = r"$do($"
@@ -215,38 +336,31 @@ def plot_cf(
             if k == "sex":
                 vv = sex_categories[int(v[j].item())]
                 kk = "s"
-            elif k == "mri_seq":
-                vv = mriseq_categories[int(v[j].item())]
-                kk = "m"
+            elif k == "diagnosis":
+                vv = diagnosis_categories[int(v[j].item())]
+                kk = "d"
             elif k == "age":
                 vv = str(v[j].item())
                 kk = "a"
-            else:
-                vv = str(np.round(v[j].item() / 1000, 1))
-                kk = k[0]
             msg += rf"${kk}{{=}}$" + f"{vv}"
             msg += ", " if (i + 1) < len(list(do.keys())) else ""
 
         ax[1, j].set_title(msg + r"$)$", fontsize=fs - 2, pad=pad + 4)
 
         s = str(sex_categories[int(pa["sex"][j].item())])
-        m = str(mriseq_categories[int(pa["mri_seq"][j].item())])
+        d = str(diagnosis_categories[int(pa["diagnosis"][j].item())])
         a = str(int(pa["age"][j].item()))
-        b = str(np.round(pa["brain_volume"][j].item() / 1000, 1))  # ml
-        v = str(np.round(pa["ventricle_volume"][j].item() / 1000, 1))  # ml
 
         # ax[0,j].set_title(rf'$a{{=}}{a}, \ s{{=}}{s}, \ m{{=}}{m}$' +'\n'+ rf'$b{{=}}{b}, \ v{{=}}{v}$',
         #                 pad=pad, fontsize=fs-4, multialignment='center', linespacing=1.5)
 
         ax[0, j].set_title(
             rf"$m{{=}}$"
-            + f"{m}"
+            + f"{d}"
             + "$, \ a{{=}}$"
             + f"{a}"
             + rf"$, \ s{{=}}$"
-            + f"{s}"
-            + "\n"
-            + rf"$b{{=}}{b}, \ v{{=}}{v}$",
+            + f"{s}",
             pad=pad + 2,
             fontsize=fs - 8,
             multialignment="center",
@@ -255,24 +369,20 @@ def plot_cf(
 
         # plot counterfactual
         cf_s = str(sex_categories[int(cf_pa["sex"][j].item())])
-        cf_m = str(mriseq_categories[int(cf_pa["mri_seq"][j].item())])
+        cf_d = str(diagnosis_categories[int(cf_pa["diagnosis"][j].item())])
         cf_a = str(np.round(cf_pa["age"][j].item(), 1))
-        cf_b = str(np.round(cf_pa["brain_volume"][j].item() / 1000, 1))  # ml
-        cf_v = str(np.round(cf_pa["ventricle_volume"][j].item() / 1000, 1))  # ml
 
         # ax[1, j].set_xlabel(rf'$\widetilde{{a}}{{=}}{cf_a}, \ \widetilde{{s}}{{=}}{cf_s}, \ \widetilde{{m}}{{=}}{cf_m}$' +'\n'+
         #     rf'$\widetilde{{b}}{{=}}{cf_b}, \ \widetilde{{v}}{{=}}{cf_v}$',
         #                 labelpad=pad+1, fontsize=fs-4, multialignment='center', linespacing=1.25)
 
         ax[1, j].set_xlabel(
-            rf"$\widetilde{{m}}{{=}}$"
-            + f"{cf_m}"
+            rf"$\widetilde{{d}}{{=}}$"
+            + f"{cf_d}"
             + "$, \ \widetilde{{a}}{{=}}$"
             + f"{cf_a}"
             rf"$, \ \widetilde{{s}}{{=}}$"
-            + f"{cf_s}"
-            + "\n"
-            + rf"$\widetilde{{b}}{{=}}{cf_b}, \ \widetilde{{v}}{{=}}{cf_v}$",
+            + f"{cf_s}",
             labelpad=pad + 4,
             fontsize=fs - 8,
             multialignment="center",

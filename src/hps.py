@@ -75,7 +75,17 @@ adnioasis64.enc_arch = "64b3d2,32b31d2,16b15d2,8b7d2,4b3d4,1b2"
 adnioasis64.dec_arch = "1b2,4b4,8b8,16b16,32b32,64b4"
 adnioasis64.widths = [32, 64, 128, 256, 512, 1024]
 adnioasis64.context_dim = 3
+adnioasis64.dataset = "adnioasis"
 HPARAMS_REGISTRY["adnioasis64"] = adnioasis64
+
+# adnioasis160 = Hparams()
+# adnioasis160.update(adnioasis64.__dict__)
+# adnioasis160.input_res = 160
+# adnioasis160.pad = 6
+# adnioasis160.enc_arch = "160b1d2,80b3d2,40b7d2,20b11d2,10b7d2,5b3d5,1b2"
+# adnioasis160.dec_arch = "1b2,5b4,10b8,20b12,40b8,80b4,160b2"
+# adnioasis160.widths = [32, 64, 96, 128, 160, 192, 512]
+# HPARAMS_REGISTRY["adnioasis160"] = adnioasis160
 
 adnioasis192 = Hparams()
 adnioasis192.update(adnioasis64.__dict__)
@@ -271,5 +281,11 @@ def add_arguments(parser: argparse.ArgumentParser):
         help="Use posterior correction.",
         action="store_true",
         default=False,
+    )
+    parser.add_argument(
+        "--dataset",
+        help='Name of dataset.',
+        type=str,
+        default="adnioasis",
     )
     return parser

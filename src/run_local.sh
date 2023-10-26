@@ -34,8 +34,8 @@ exp_name="$1"
 
 run_cmd="python main.py \
     --exp_name=$exp_name \
-    --data_dir= ../datasets/adnioasis \
-    --hps adnioasis192 \
+    --data_dir=../datasets/adnioasis/unbalanced \
+    --hps adnioasis64 \
     --parents_x sex age diagnosis \
     --context_dim=3 \
     --concat_pa \
@@ -45,8 +45,8 @@ run_cmd="python main.py \
     --beta=5 \
     --x_like=diag_dgauss \
     --z_max_res=96 \
-    --eval_freq=4 "
-    # --resume= ../checkpoints/s_a_d/test1/checkpoint.pt
+    --eval_freq=4"
+    # --resume=../checkpoints/s_a_d/vae192_z192/checkpoint.pt
 
 if [ "$2" = "nohup" ]
 then

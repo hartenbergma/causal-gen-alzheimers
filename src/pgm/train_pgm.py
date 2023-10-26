@@ -13,6 +13,7 @@ from sklearn.metrics import roc_auc_score
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import ExponentialLR
 from tqdm import tqdm
 from utils_pgm import plot_joint, update_stats
 
@@ -32,7 +33,7 @@ def preprocess(
     batch: Dict[str, Tensor], dataset: str = "ukbb", split: str = "l"
 ) -> Dict[str, Tensor]:
     if "x" in batch.keys():
-        batch["x"] = (batch["x"].float().to(device) - 127.5) / 127.5  # [-1,1]
+        batch["x"] = (batch["x"].float().to(device) - 127.5) / 127.5 # [-1,1]
     # for all other variables except x
     not_x = [k for k in batch.keys() if k != "x"]
     for k in not_x:
@@ -56,6 +57,14 @@ def preprocess(
                 k_max, k_min = ADNIOASISDataset.get_attr_max_min(k)
                 batch[k] = (batch[k] - k_min) / (k_max - k_min)  # [0,1]
                 batch[k] = 2 * batch[k] - 1  # [-1,1]
+
+    # # plot one image of batch
+    # img = batch["x"][0].cpu().numpy()
+    # print(f"batch shape: {batch['x'].shape}, img shape: {img.shape}, squeezed shape: {img.squeeze().shape}")
+    # print(f"min: {img.min()}, max: {img.max()}, mean: {img.mean()}, std: {img.std()}")
+    # plt.imshow(img.squeeze(), cmap="gray")
+    # plt.savefig(f"test_img.png")
+    
     return batch
 
 
@@ -229,10 +238,20 @@ def eval_epoch(
                 stats[k + "_acc"] = (
                     targets[k] == torch.round(preds[k])
                 ).sum().item() / targets[k].shape[0]
+                print("------------------------------------")
+                print(f"Targets: {np.sum(targets[k].numpy() == 0)} {np.sum(targets[k].numpy() == 1)}")
+                pred_labels = torch.round(preds[k])
+                print(f"Predictions: {np.sum(pred_labels.numpy() == 0)} {np.sum(pred_labels.numpy() == 1)}")
+                print("------------------------------------")
             elif k == "diagnosis":
                 num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
                 stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
                 # print(f"tartets min: {targets[k].min()}\n max: {targets[k].max()}\n shape: {targets[k].shape}\n unique values: {targets[k].unique()}")
+                print("------------------------------------")
+                print(f"Targets: {np.sum(targets[k].numpy() == 0)} {np.sum(targets[k].numpy() == 1)} {np.sum(targets[k].numpy() == 2)}")
+                pred_labels = preds[k].argmax(-1)
+                print(f"Predictions: {np.sum(pred_labels.numpy() == 0)} {np.sum(pred_labels.numpy() == 1)} {np.sum(pred_labels.numpy() == 2)}")
+                print("------------------------------------")
                 targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
                 stats[k + "_rocauc"] = roc_auc_score(
                     targets_onehot.numpy(),
@@ -317,34 +336,40 @@ def setup_dataloaders(args: Hparams) -> Dict[str, DataLoader]:
         "worker_init_fn": seed_worker,
     }
     dataloaders = {}
-    if args.setup == "sup_pgm":
-        dataloaders["train"] = DataLoader(
-            datasets["train"], shuffle=True, drop_last=True, **kwargs
-        )
-    else:
-        args.n_total = len(datasets["train"])
-        args.n_labelled = int(args.sup_frac * args.n_total)
-        args.n_unlabelled = args.n_total - args.n_labelled
-        idx = np.arange(args.n_total)
-        rng = np.random.RandomState(1)
-        rng.shuffle(idx)
-        train_l = torch.utils.data.Subset(datasets["train"], idx[: args.n_labelled])
 
-        if args.setup == "semi_sup":
-            train_u = torch.utils.data.Subset(datasets["train"], idx[args.n_labelled :])
-            dataloaders["train_l"] = DataLoader(  # labelled
-                train_l, shuffle=True, drop_last=True, **kwargs
-            )
-            dataloaders["train_u"] = DataLoader(  # unlabelled
-                train_u, shuffle=True, drop_last=True, **kwargs
-            )
-        elif args.setup == "sup_aux":
-            dataloaders["train"] = DataLoader(  # labelled
-                train_l, shuffle=True, drop_last=True, **kwargs
-            )
+    if hasattr(args, "setup"):
+        if args.setup == "sup_pgm":
+            dataloaders["train"] = DataLoader(
+                datasets["train"], shuffle=True, drop_last=False, **kwargs
+            ) 
+        if args.setup == "sup_aux" or args.setup == "semi_sup":
+            args.n_total = len(datasets["train"])
+            args.n_labelled = int(args.sup_frac * args.n_total)
+            args.n_unlabelled = args.n_total - args.n_labelled
+            idx = np.arange(args.n_total)
+            rng = np.random.RandomState(1)
+            rng.shuffle(idx)
+            train_l = torch.utils.data.Subset(datasets["train"], idx[: args.n_labelled])
+
+            if args.setup == "semi_sup":
+                train_u = torch.utils.data.Subset(datasets["train"], idx[args.n_labelled :])
+                dataloaders["train_l"] = DataLoader(  # labelled
+                    train_l, shuffle=True, drop_last=False, **kwargs
+                )
+                dataloaders["train_u"] = DataLoader(  # unlabelled
+                    train_u, shuffle=True, drop_last=False, **kwargs
+                )
+            elif args.setup == "sup_aux":
+                dataloaders["train"] = DataLoader(  # labelled
+                    train_l, shuffle=True, drop_last=False, **kwargs
+                )
+    else:
+        dataloaders["train"] = DataLoader(datasets["train"], shuffle=True, drop_last=False, **kwargs),
 
     dataloaders["valid"] = DataLoader(datasets["valid"], shuffle=False, **kwargs)
-    dataloaders["test"] = DataLoader(datasets["test"], shuffle=False, **kwargs)
+    dataloaders["test"] = DataLoader(datasets["test"], shuffle=False, **kwargs)   
+
+
     return dataloaders
 
 
@@ -384,6 +409,7 @@ if __name__ == "__main__":
         "--lr_warmup_steps", help="lr warmup steps.", type=int, default=1
     )
     parser.add_argument("--wd", help="Weight decay penalty.", type=float, default=0.1)
+    parser.add_argument("--gamma", help="Exponential weight decay rate.", type=float, default=1.0)
     parser.add_argument(
         "--input_res", help="Input image crop resolution.", type=int, default=192
     )
@@ -467,6 +493,7 @@ if __name__ == "__main__":
     elbo_fn = TraceStorage_ELBO(num_particles=2)
     aux_elbo_fn = TraceStorage_ELBO(num_particles=2)
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.wd)
+    scheduler = ExponentialLR(optimizer, gamma=args.gamma)
 
     if not args.testing:
         # Train model
@@ -497,6 +524,7 @@ if __name__ == "__main__":
                     aux_elbo_fn,
                     optimizer,
                 )
+                scheduler.step()
                 # valid aux loss on labelled data only
                 if epoch % args.eval_freq == 0:
                     valid_stats = sup_epoch(
@@ -530,6 +558,7 @@ if __name__ == "__main__":
                     optimizer,
                     is_train=True,
                 )
+                scheduler.step()
                 if epoch % args.eval_freq == 0:
                     valid_stats = sup_epoch(
                         args,
@@ -564,7 +593,7 @@ if __name__ == "__main__":
 
             if epoch % args.eval_freq == 0:
                 if not args.setup == "sup_pgm":  # eval aux classifiers
-                    metrics = eval_epoch(args, ema.ema_model, dataloaders["train"])
+                    metrics = eval_epoch(args, ema.ema_model, dataloaders["valid"])
                     logger.info(
                         "valid | "
                         + " - ".join(f"{k}: {v:.4f}" for k, v in metrics.items())
@@ -586,7 +615,6 @@ if __name__ == "__main__":
                     ckpt_path,
                 )
                 logger.info(f"Model saved: {ckpt_path}")
-
     else:
         # test model
         model.load_state_dict(ckpt["model_state_dict"])

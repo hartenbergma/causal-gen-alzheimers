@@ -133,12 +133,6 @@ class AdniOasisPGM(BasePGM):
             self.register_buffer(f"{k}_base_loc", torch.zeros(1))
             self.register_buffer(f"{k}_base_scale", torch.ones(1)) 
 
-        # constraint, assumes data is [-1,1] normalized
-        # normalize_transform = T.ComposeTransform([
-        #     T.AffineTransform(loc=0, scale=2), T.SigmoidTransform(), T.AffineTransform(loc=-1, scale=2)])
-        # normalize_transform = T.ComposeTransform([T.TanhTransform(cache_size=1)])
-        # normalize_transform = T.ComposeTransform([T.AffineTransform(loc=0, scale=1)])
-
         # age flow
         self.age_module = T.ComposeTransformModule(
             [T.Spline(1, count_bins=4, order="linear")]
@@ -152,27 +146,32 @@ class AdniOasisPGM(BasePGM):
             context_nn=d_net, event_dim=0
         )
 
-        # if args.setup != 'sup_pgm':
-        # anticausal predictors
-        # input shape: shape of input image
-        # num_outputs: number of distribution parameters
-        # context_dim: dimension of context vector (additional inputs apart from image)
-        input_shape = (args.input_channels, args.input_res, args.input_res)
-        # q(s | x) = Bernoulli(f(x))
-        # self.encoder_s = CNN(input_shape, num_outputs=1)
-        # q(s | x, d) = Bernoulli(f(x))
-        self.encoder_s = CNN(input_shape, num_outputs=1, context_dim=1)
-        # q(a | x) = Normal(mu(x), sigma(x))
-        # self.encoder_a = MLP(input_shape, num_outputs=1)
-        # q(a | x, d) = Normal(mu(x), sigma(x))
-        self.encoder_a = CNN(input_shape, num_outputs=2, context_dim=1)
-        # q(d | x) = Categorical(pi(x))
-        self.encoder_d = CNN(input_shape, num_outputs=3, width=64) # (output class logits)
-        self.f = (
-            lambda x: args.std_fixed * torch.ones_like(x)
-            if args.std_fixed > 0
-            else F.softplus(x)
-        )
+        if args.setup != 'sup_pgm':
+            from resnet import ResNet18
+            # from monai.networks.nets import resnet18
+
+            # anticausal predictors
+            # input shape: shape of input image
+            # num_outputs: number of distribution parameters
+            # context_dim: dimension of context vector (additional inputs apart from image)
+            input_shape = (args.input_channels, args.input_res, args.input_res)
+            # q(s | x) = Bernoulli(f(x))
+            # self.encoder_s = CNN(input_shape, num_outputs=1)
+            # q(s | x, d) = Bernoulli(f(x))
+            self.encoder_s = CNN(input_shape, num_outputs=1, context_dim=1)
+            # q(a | x) = Normal(mu(x), sigma(x))
+            # self.encoder_a = MLP(input_shape, num_outputs=1)
+            # q(a | x, d) = Normal(mu(x), sigma(x))
+            self.encoder_a = CNN(input_shape, num_outputs=2, context_dim=1)
+            # q(d | x) = Categorical(pi(x))
+            # self.encoder_d = CNN(input_shape, num_outputs=3) # (output class logits)
+            self.encoder_d = ResNet18(in_shape=input_shape, num_outputs=3)
+            # self.encoder_d = resnet18(spatial_dims=2, n_input_channels=1, num_classes=3)
+            self.f = (
+                lambda x: args.std_fixed * torch.ones_like(x)
+                if args.std_fixed > 0
+                else F.softplus(x)
+            )
 
     def model(self) -> Dict[str, Tensor]:
         # p(s), sex dist
@@ -305,12 +304,6 @@ class FlowPGM(BasePGM):
         for k in ["a", "b", "v"]:
             self.register_buffer(f"{k}_base_loc", torch.zeros(1))
             self.register_buffer(f"{k}_base_scale", torch.ones(1))
-
-        # constraint, assumes data is [-1,1] normalized
-        # normalize_transform = T.ComposeTransform([
-        #     T.AffineTransform(loc=0, scale=2), T.SigmoidTransform(), T.AffineTransform(loc=-1, scale=2)])
-        # normalize_transform = T.ComposeTransform([T.TanhTransform(cache_size=1)])
-        # normalize_transform = T.ComposeTransform([T.AffineTransform(loc=0, scale=1)])
 
         # age flow
         self.age_module = T.ComposeTransformModule(
