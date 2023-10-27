@@ -9,8 +9,9 @@ run_cmd="python train_cf.py \
     --predictor_path=../../checkpoints/s_a_d/aux64/checkpoint.pt \
     --vae_path=../../checkpoints/s_a_d/vae64/checkpoint.pt \
     --hps adnioasis192 \
-    --parents_x sex age diagnosis \
+    --parents_x age diagnosis \
     --context_dim=3 \
+    --context_norm=[-1,1] \
     --concat_pa \
     --lr=1e-4 \
     --bs=32 \

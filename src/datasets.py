@@ -47,18 +47,19 @@ class ADNIOASISDataset(Dataset):
         for i in self.columns:
             if i == "path":
                 self.samples[i] = self.df[i]  # Keep the "path" column as it is
-            elif i == "diagnosis":
-                self.samples[i] = torch.as_tensor(self.df[i]*2).long() 
+            # elif i == "diagnosis":
+            #     self.samples[i] = torch.as_tensor(self.df[i]*2).long()
             else:
                 self.samples[i] = torch.as_tensor(self.df[i]).float()  # Convert other columns to PyTorch tensors
 
         for k in ["age"]:
+            max, min = ADNIOASISDataset.get_attr_max_min(k)
             print(f"{k} normalization: {norm}")
             if k in self.columns:
                 if norm == "[-1,1]":
-                    self.samples[k] = normalize(self.samples[k])
+                    self.samples[k] = normalize(self.samples[k], x_min=min, x_max=max)
                 elif norm == "[0,1]":
-                    self.samples[k] = normalize(self.samples[k], zero_one=True)
+                    self.samples[k] = normalize(self.samples[k], x_min=min, x_max=max, zero_one=True)
                 elif norm == "log_standard":
                     self.samples[k] = log_standardize(self.samples[k])
                 elif norm == None:
@@ -130,7 +131,7 @@ def adnioasis(args: Hparams) -> Dict[str, ADNIOASISDataset]:
             [ 
                 transforms.LoadImage(image_only=True, ensure_channel_first=True),
                 transforms.Lambda(func=lambda x: x[0:1,:,:]), # only keep first channel
-                transforms.ScaleIntensityRangePercentiles(lower=40, upper=95.0, b_min=0.0, b_max=1.0, clip=True),
+                transforms.ScaleIntensityRangePercentiles(lower=40, upper=95.0, b_min=0.0, b_max=255.0, clip=True),
                 transforms.SpatialPad(spatial_size=(256, 256), mode="constant"),
                 TF.Resize((args.input_res, args.input_res), antialias=None),
             ]

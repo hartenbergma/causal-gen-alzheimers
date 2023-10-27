@@ -32,12 +32,15 @@ exp_name="$1"
 #     --z_max_res=96 \
 #     --eval_freq=4"
 
+
+# without sex
 run_cmd="python main.py \
     --exp_name=$exp_name \
     --data_dir=../datasets/adnioasis/unbalanced \
-    --hps adnioasis64 \
-    --parents_x sex age diagnosis \
-    --context_dim=3 \
+    --hps adnioasis192 \
+    --parents_x age diagnosis \
+    --context_dim=2 \
+    --context_norm=[-1,1] \
     --concat_pa \
     --lr=0.001 \
     --bs=32 \
@@ -47,6 +50,24 @@ run_cmd="python main.py \
     --z_max_res=96 \
     --eval_freq=4"
     # --resume=../checkpoints/s_a_d/vae192_z192/checkpoint.pt
+
+# # with sex
+# run_cmd="python main.py \
+#     --exp_name=$exp_name \
+#     --data_dir=../datasets/adnioasis/unbalanced \
+#     --hps adnioasis192 \
+#     --parents_x age sex diagnosis \
+#     --context_dim=3 \
+#     --context_norm=[-1,1] \
+#     --concat_pa \
+#     --lr=0.001 \
+#     --bs=32 \
+#     --wd=0.05 \
+#     --beta=5 \
+#     --x_like=diag_dgauss \
+#     --z_max_res=96 \
+#     --eval_freq=4"
+
 
 if [ "$2" = "nohup" ]
 then

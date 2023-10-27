@@ -34,7 +34,8 @@ def inv_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
     # undo [-1,1] parent preprocessing back to original range
     for k, v in pa.items():
         if k != "mri_seq" and k != "sex" and k!="diagnosis":
-            pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
+            if args.context_norm == "[-1,1]":
+                pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
             _max, _min = ADNIOASISDataset.get_attr_max_min(k)
             pa[k] = pa[k] * (_max - _min) + _min
     return pa
@@ -84,23 +85,23 @@ def get_metrics(
                 norm = 1000 if "volume" in k else 1  # for volume in ml
                 stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item() / norm
         elif "adnioasis" in args.dataset:
-            if k == "sex":
+            if k == "sex" or k == "diagnosis":
                 stats[k + "_rocauc"] = roc_auc_score(
                     targets[k].numpy(), preds[k].numpy(), average="macro"
                 )
                 stats[k + "_acc"] = (
                     targets[k] == torch.round(preds[k])
                 ).sum().item() / targets[k].shape[0]
-            elif k == "diagnosis":
-                num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
-                stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
-                targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
-                stats[k + "_rocauc"] = roc_auc_score(
-                    targets_onehot.numpy(),
-                    preds[k].numpy(),
-                    multi_class="ovr",
-                    average="macro",
-                )
+            # elif k == "diagnosis":
+            #     num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
+            #     stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
+            #     targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
+            #     stats[k + "_rocauc"] = roc_auc_score(
+            #         targets_onehot.numpy(),
+            #         preds[k].numpy(),
+            #         multi_class="ovr",
+            #         average="macro",
+            #     )
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
                 _max, _min = ADNIOASISDataset.get_attr_max_min(k)
@@ -318,6 +319,12 @@ if __name__ == "__main__":
     parser.add_argument("--imgs_plot", help="num images to plot.", type=int, default=10)
     parser.add_argument(
         "--cf_particles", help="num counterfactual samples.", type=int, default=1
+    )
+    parser.add_argument(
+        "--context_norm",
+        help='Conditioning normalisation {"[-1,1]"/"[0,1]"}.',
+        type=str,
+        default="[-1,1]"
     )
     args = parser.parse_known_args()[0]
 

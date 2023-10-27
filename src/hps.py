@@ -75,6 +75,7 @@ adnioasis64.enc_arch = "64b3d2,32b31d2,16b15d2,8b7d2,4b3d4,1b2"
 adnioasis64.dec_arch = "1b2,4b4,8b8,16b16,32b32,64b4"
 adnioasis64.widths = [32, 64, 128, 256, 512, 1024]
 adnioasis64.context_dim = 3
+adnioasis64.context_norm = "[-1,1]"
 adnioasis64.dataset = "adnioasis"
 HPARAMS_REGISTRY["adnioasis64"] = adnioasis64
 

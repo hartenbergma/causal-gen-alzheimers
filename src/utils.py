@@ -289,13 +289,12 @@ def write_images(args: Hparams, model: nn.Module, batch: Dict[str, Tensor]):
     zs = model.abduct(x=batch["x"], parents=batch["pa"])
     # print(len(zs), zs[0]['z'].keys())
     n_latents_viz = 0  # 0 for simple vae
-    l_points = np.floor(np.linspace(0, 1, n_latents_viz + 2) * len(zs)).astype(int)[
-        1:
-    ]  # [1:-1]
+    l_points = np.floor(np.linspace(0, 1, n_latents_viz + 2) * len(zs)).astype(int)[1:]  # [1:-1]
+    print(l_points)
 
     for l in l_points:
         # reconstruc using first l latent z's
-        if model.cond_prior:
+        if model.cond_prior: # false
             z_l = [zs[i]["z"] for i in range(l)]
         else:
             z_l = zs[:l]

@@ -53,17 +53,32 @@ def preprocess(
                 batch[k] = 2 * batch[k] - 1  # [-1,1]
     if "adnioasis" in dataset:
         for k in not_x:
-            if k in ["age"]:
-                k_max, k_min = ADNIOASISDataset.get_attr_max_min(k)
-                batch[k] = (batch[k] - k_min) / (k_max - k_min)  # [0,1]
-                batch[k] = 2 * batch[k] - 1  # [-1,1]
+            if k == "age":
+                pass
+                # uncommented because it is done in datasets file when args.context_norm is defined
+                # k_max, k_min = ADNIOASISDataset.get_attr_max_min(k)
+                # batch[k] = (batch[k] - k_min) / (k_max - k_min)  # [0,1]
+                # batch[k] = 2 * batch[k] - 1  # [-1,1]
 
-    # # plot one image of batch
-    # img = batch["x"][0].cpu().numpy()
-    # print(f"batch shape: {batch['x'].shape}, img shape: {img.shape}, squeezed shape: {img.squeeze().shape}")
-    # print(f"min: {img.min()}, max: {img.max()}, mean: {img.mean()}, std: {img.std()}")
-    # plt.imshow(img.squeeze(), cmap="gray")
-    # plt.savefig(f"test_img.png")
+
+    # img_batch = batch["x"].cpu().numpy()
+    # age_batch = batch["age"].cpu().numpy()
+    # diagnosis_batch = batch["diagnosis"].cpu().numpy()
+    # # print batch info
+    # print(f"x batch shape: {img_batch.shape}\n min(x): {img_batch.min()}\n max(x): {img_batch.max()}")
+    # print(f"age batch shape: {age_batch.shape}\n age batch: {age_batch}")
+    # print(f"diagnosis batch shape: {diagnosis_batch.shape}\n diagnosis batch: {diagnosis_batch}")
+    # # save images of batch
+    # img_array = img_batch.squeeze()
+    # img_array = (img_batch.reshape(4, 8, 192, 192)
+    #             .swapaxes(1,2)
+    #             .reshape(192*4, 192*8))
+    # dpi = 500
+    # fig, ax = plt.subplots(figsize=(img_array.shape[1] / dpi, img_array.shape[0] / dpi), dpi=dpi)
+    # ax.imshow(img_array, cmap="gray", vmin=-1, vmax=1)
+    # ax.set_xticks([])
+    # ax.set_yticks([])
+    # plt.savefig(f"sample_batch_image.png")
     
     return batch
 
@@ -231,7 +246,7 @@ def eval_epoch(
                 norm = 1000 if "volume" in k else 1  # for volume in ml
                 stats[k + "_mae"] = (targets[k] - preds_k).abs().mean().item() / norm
         elif "adnioasis" in args.dataset:
-            if k == "sex":
+            if k == "sex" or k == "diagnosis":
                 stats[k + "_rocauc"] = roc_auc_score(
                     targets[k].numpy(), preds[k].numpy(), average="macro"
                 )
@@ -243,22 +258,22 @@ def eval_epoch(
                 pred_labels = torch.round(preds[k])
                 print(f"Predictions: {np.sum(pred_labels.numpy() == 0)} {np.sum(pred_labels.numpy() == 1)}")
                 print("------------------------------------")
-            elif k == "diagnosis":
-                num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
-                stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
-                # print(f"tartets min: {targets[k].min()}\n max: {targets[k].max()}\n shape: {targets[k].shape}\n unique values: {targets[k].unique()}")
-                print("------------------------------------")
-                print(f"Targets: {np.sum(targets[k].numpy() == 0)} {np.sum(targets[k].numpy() == 1)} {np.sum(targets[k].numpy() == 2)}")
-                pred_labels = preds[k].argmax(-1)
-                print(f"Predictions: {np.sum(pred_labels.numpy() == 0)} {np.sum(pred_labels.numpy() == 1)} {np.sum(pred_labels.numpy() == 2)}")
-                print("------------------------------------")
-                targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
-                stats[k + "_rocauc"] = roc_auc_score(
-                    targets_onehot.numpy(),
-                    preds[k].numpy(),
-                    multi_class="ovr",
-                    average="macro",
-                )
+            # elif k == "diagnosis":
+            #     num_corrects = (targets[k] == preds[k].argmax(-1)).sum()
+            #     stats[k + "_acc"] = num_corrects.item() / targets[k].shape[0]
+            #     # print(f"tartets min: {targets[k].min()}\n max: {targets[k].max()}\n shape: {targets[k].shape}\n unique values: {targets[k].unique()}")
+            #     print("------------------------------------")
+            #     print(f"Targets: {np.sum(targets[k].numpy() == 0)} {np.sum(targets[k].numpy() == 1)} {np.sum(targets[k].numpy() == 2)}")
+            #     pred_labels = preds[k].argmax(-1)
+            #     print(f"Predictions: {np.sum(pred_labels.numpy() == 0)} {np.sum(pred_labels.numpy() == 1)} {np.sum(pred_labels.numpy() == 2)}")
+            #     print("------------------------------------")
+            #     targets_onehot = F.one_hot(targets[k].long(), num_classes=3)
+            #     stats[k + "_rocauc"] = roc_auc_score(
+            #         targets_onehot.numpy(),
+            #         preds[k].numpy(),
+            #         multi_class="ovr",
+            #         average="macro",
+            #     )
             else:  # continuous variables
                 preds_k = (preds[k] + 1) / 2  # [-1,1] -> [0,1]
                 _max, _min = ADNIOASISDataset.get_attr_max_min(k)
@@ -340,7 +355,7 @@ def setup_dataloaders(args: Hparams) -> Dict[str, DataLoader]:
     if hasattr(args, "setup"):
         if args.setup == "sup_pgm":
             dataloaders["train"] = DataLoader(
-                datasets["train"], shuffle=True, drop_last=False, **kwargs
+                datasets["train"], shuffle=True, drop_last=True, **kwargs
             ) 
         if args.setup == "sup_aux" or args.setup == "semi_sup":
             args.n_total = len(datasets["train"])
@@ -354,17 +369,17 @@ def setup_dataloaders(args: Hparams) -> Dict[str, DataLoader]:
             if args.setup == "semi_sup":
                 train_u = torch.utils.data.Subset(datasets["train"], idx[args.n_labelled :])
                 dataloaders["train_l"] = DataLoader(  # labelled
-                    train_l, shuffle=True, drop_last=False, **kwargs
+                    train_l, shuffle=True, drop_last=True, **kwargs
                 )
                 dataloaders["train_u"] = DataLoader(  # unlabelled
-                    train_u, shuffle=True, drop_last=False, **kwargs
+                    train_u, shuffle=True, drop_last=True, **kwargs
                 )
             elif args.setup == "sup_aux":
                 dataloaders["train"] = DataLoader(  # labelled
-                    train_l, shuffle=True, drop_last=False, **kwargs
+                    train_l, shuffle=True, drop_last=True, **kwargs
                 )
     else:
-        dataloaders["train"] = DataLoader(datasets["train"], shuffle=True, drop_last=False, **kwargs),
+        dataloaders["train"] = DataLoader(datasets["train"], shuffle=True, drop_last=True, **kwargs),
 
     dataloaders["valid"] = DataLoader(datasets["valid"], shuffle=False, **kwargs)
     dataloaders["test"] = DataLoader(datasets["test"], shuffle=False, **kwargs)   
@@ -443,6 +458,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--std_fixed", help="Fix aux dist std value (0 is off).", type=float, default=0
+    )
+    parser.add_argument(
+        "--context_norm",
+        help='Conditioning normalisation {"[-1,1]"/"[0,1]"}.',
+        type=str,
+        default="[-1,1]",
     )
     args = parser.parse_known_args()[0]
 
@@ -593,6 +614,7 @@ if __name__ == "__main__":
 
             if epoch % args.eval_freq == 0:
                 if not args.setup == "sup_pgm":  # eval aux classifiers
+                    metrics = eval_epoch(args, ema.ema_model, dataloaders["train"])
                     metrics = eval_epoch(args, ema.ema_model, dataloaders["valid"])
                     logger.info(
                         "valid | "

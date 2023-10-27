@@ -121,16 +121,16 @@ def adnioasisi_preprocess(pa: Dict[str, Tensor]) -> Dict[str, Tensor]:
     """hack for preprocessing adnioasis parents for the vae which was originally trained using
     log-standardized parents, whereas the pgm was trained using [-1,1] normalization"""
 
-    for k, v in pa.items():
-        if k == "age":
-            # first undo [-1,1] parent preprocessing back to original range
-            pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
-            _max, _min = ADNIOASISDataset.get_attr_max_min(k)
-            pa[k] = pa[k] * (_max - _min) + _min 
+    # for k, v in pa.items():
+    #     if k == "age":
+    #         # first undo [-1,1] parent preprocessing back to original range
+    #         pa[k] = (v + 1) / 2  # [-1,1] -> [0,1]
+    #         _max, _min = ADNIOASISDataset.get_attr_max_min(k)
+    #         pa[k] = pa[k] * (_max - _min) + _min 
 
-            # log-standardize parents for vae input
-            logpa_k = torch.log(v.clamp(min=1e-12))
-            pa[k] = (logpa_k - 4.295305147924922) / 0.13014071547419478
+    #         # log-standardize parents for vae input
+    #         logpa_k = torch.log(v.clamp(min=1e-12))
+    #         pa[k] = (logpa_k - 4.295305147924922) / 0.13014071547419478
 
     #     elif k == "diagnosis":
     #         pa[k] = v/2
